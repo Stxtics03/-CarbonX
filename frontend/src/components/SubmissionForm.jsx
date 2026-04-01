@@ -1,5 +1,5 @@
 // src/components/SubmissionForm.jsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 function generateWalletId() {
   const seg = (n) =>
@@ -7,276 +7,197 @@ function generateWalletId() {
   return `0x${seg(8)}-${seg(4)}-${seg(4)}-${seg(4)}-${seg(12)}`;
 }
 
-function getStrength(pwd) {
-  let score = 0;
-  if (pwd.length >= 8) score++;
-  if (pwd.length >= 12) score++;
-  if (/[A-Z]/.test(pwd)) score++;
-  if (/[0-9]/.test(pwd)) score++;
-  if (/[^A-Za-z0-9]/.test(pwd)) score++;
-  const levels = [
-    { pct: 0, color: "#ef4444", label: "" },
-    { pct: 20, color: "#ef4444", label: "Too weak" },
-    { pct: 40, color: "#f97316", label: "Weak" },
-    { pct: 60, color: "#eab308", label: "Fair" },
-    { pct: 80, color: "#84cc16", label: "Good" },
-    { pct: 100, color: "#22c55e", label: "Strong 🔥" },
-  ];
-  return levels[Math.min(score, 5)];
-}
-
 export default function SubmissionForm({ onRegistered, onBack }) {
-  const [form, setForm] = useState({ username: "", mobile: "", password: "", confirm: "" });
+  const [tab, setTab] = useState("signup"); // "signup" | "login"
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [errors, setErrors] = useState({});
-  const [touched, setTouched] = useState({});
-  const [showPass, setShowPass] = useState(false);
-  const [terms, setTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [metaMaskLoading, setMetaMaskLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
 
-  const strength = getStrength(form.password);
-
-  const validate = (f) => {
+  const validate = () => {
     const e = {};
-    if (!f.username) e.username = "Username is required.";
-    else if (f.username.length < 3) e.username = "At least 3 characters.";
-    else if (!/^[a-zA-Z0-9_]+$/.test(f.username)) e.username = "Letters, numbers, underscore only.";
-    if (!f.mobile) e.mobile = "Mobile number is required.";
-    else if (f.mobile.replace(/\D/g, "").length < 10) e.mobile = "Enter a valid mobile number.";
-    if (!f.password) e.password = "Password is required.";
-    else if (f.password.length < 8) e.password = "Minimum 8 characters.";
-    if (!f.confirm) e.confirm = "Please confirm your password.";
-    else if (f.confirm !== f.password) e.confirm = "Passwords do not match.";
+    if (tab === "signup" && !form.name) e.name = "Name is required";
+    if (!form.email || !/\S+@\S+\.\S+/.test(form.email)) e.email = "Valid email required";
+    if (!form.password || form.password.length < 6) e.password = "Min 6 characters";
     return e;
-  };
-
-  useEffect(() => {
-    if (form.username || form.mobile || form.password) setActiveStep(1);
-    else setActiveStep(0);
-  }, [form]);
-
-  const handleChange = (key, val) => {
-    const newForm = { ...form, [key]: val };
-    setForm(newForm);
-    if (touched[key]) {
-      const e = validate(newForm);
-      setErrors((prev) => ({ ...prev, [key]: e[key] }));
-    }
-  };
-
-  const handleBlur = (key) => {
-    setTouched((prev) => ({ ...prev, [key]: true }));
-    const e = validate(form);
-    setErrors((prev) => ({ ...prev, [key]: e[key] }));
   };
 
   const handleSubmit = (ev) => {
     ev.preventDefault();
-    const allTouched = { username: true, mobile: true, password: true, confirm: true };
-    setTouched(allTouched);
-    const e = validate(form);
+    const e = validate();
     setErrors(e);
     if (Object.keys(e).length > 0) return;
-    if (!terms) { alert("Please accept the Terms of Service."); return; }
-
-    setActiveStep(2);
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       setSuccess(true);
       const userData = {
-        username: form.username,
-        mobile: form.mobile,
+        username: form.name || form.email.split("@")[0],
+        email: form.email,
         walletId: generateWalletId(),
         createdAt: new Date().toISOString(),
+        credits: 0,
       };
-      setTimeout(() => onRegistered(userData), 2500);
-    }, 1800);
+      setTimeout(() => onRegistered(userData), 2000);
+    }, 1600);
   };
 
-  const fieldStatus = (key) => {
-    if (!touched[key] || !form[key]) return "neutral";
-    return errors[key] ? "invalid" : "valid";
+  const handleMetaMask = () => {
+    if (typeof window.ethereum === "undefined") {
+      alert("MetaMask not detected. Please install MetaMask extension.");
+      return;
+    }
+    setMetaMaskLoading(true);
+    window.ethereum.request({ method: "eth_requestAccounts" }).then((accounts) => {
+      setMetaMaskLoading(false);
+      setSuccess(true);
+      const userData = {
+        username: "Farmer_" + accounts[0].slice(2, 7),
+        email: "",
+        walletId: accounts[0],
+        createdAt: new Date().toISOString(),
+        credits: 0,
+        metaMask: true,
+      };
+      setTimeout(() => onRegistered(userData), 2000);
+    }).catch(() => {
+      setMetaMaskLoading(false);
+      alert("MetaMask connection failed.");
+    });
   };
-
-  const inputClass = (key) => {
-    const s = fieldStatus(key);
-    const base = "w-full bg-white/4 rounded-md px-11 py-3.5 text-white text-sm placeholder-gray-600 outline-none transition-all";
-    if (s === "valid") return `${base} border border-green-500`;
-    if (s === "invalid") return `${base} border border-red-500`;
-    return `${base} border border-white/6 focus:border-amber-400 focus:bg-amber-400/4 focus:shadow-[0_0_0_3px_rgba(245,166,35,0.15)]`;
-  };
-
-  const steps = ["Create Account", "Generate Wallet", "Access Dashboard"];
 
   return (
-    <div className="min-h-screen flex" style={{ fontFamily: "'DM Sans','Space Mono',sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700&display=swap');`}</style>
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f2eb] px-4 py-10"
+      style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap');`}</style>
 
-      {/* LEFT PANEL */}
-      <aside className="hidden md:flex w-[380px] bg-[#0c0c18] border-r border-white/5 flex-col p-10 relative overflow-hidden shrink-0">
-        <div className="absolute bottom-[-80px] left-[-80px] w-72 h-72 rounded-full bg-amber-400/6 blur-3xl pointer-events-none" />
+      {!success ? (
+        <div className="w-full max-w-md">
+          {/* Back */}
+          <button onClick={onBack} className="flex items-center gap-2 text-[#5a7045] hover:text-[#2d5a1e] text-sm mb-8 transition-colors">
+            ← Back to Home
+          </button>
 
-        <button onClick={onBack} className="text-gray-600 hover:text-amber-400 text-sm tracking-wider transition-colors mb-10 text-left">← Back to Home</button>
+          {/* Card */}
+          <div className="bg-white rounded-3xl shadow-[0_4px_40px_rgba(74,124,54,0.12)] p-8 border border-[#e8f0e0]">
 
-        <div className="flex items-center gap-2 text-amber-400 font-bold text-base tracking-widest mb-14" style={{ fontFamily: "'Space Mono',monospace" }}>
-          <span className="text-xl">⬡</span> MetaMesh
-        </div>
-
-        {/* Ring animation */}
-        <div className="relative w-44 h-44 mx-auto mb-12">
-          {[180, 130, 80].map((sz, i) => (
-            <div key={i} className={`absolute rounded-full border border-amber-400/20 ring${i + 1}`}
-              style={{ width: sz, height: sz, top: "50%", left: "50%", transform: "translate(-50%,-50%)" }} />
-          ))}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl" style={{ animation: "floatOrb 2s ease-in-out infinite" }}>🔐</div>
-        </div>
-
-        <blockquote className="border-l-2 border-amber-400 pl-4 text-gray-500 text-xs leading-loose mb-12" style={{ fontFamily: "'Space Mono',monospace" }}>
-          "Your identity. Your rules. Your vault."
-        </blockquote>
-
-        <div className="space-y-0">
-          {steps.map((s, i) => (
-            <div key={i}>
-              <div className={`flex items-center gap-3 py-1.5 text-sm transition-colors
-                ${i < activeStep ? "text-green-400" : i === activeStep ? "text-white" : "text-gray-600"}`}>
-                <div className={`w-2.5 h-2.5 rounded-full border-2 shrink-0 transition-all
-                  ${i < activeStep ? "bg-green-400 border-green-400" : i === activeStep ? "bg-amber-400 border-amber-400 shadow-[0_0_10px_rgba(245,166,35,0.5)]" : "border-gray-700"}`} />
-                {s}
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4"
+                style={{ background: "linear-gradient(135deg, #eaf4e0, #d4ecbf)" }}>
+                🌱
               </div>
-              {i < steps.length - 1 && <div className="w-px h-5 bg-white/5 ml-1" />}
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      {/* RIGHT PANEL */}
-      <main className="flex-1 flex items-center justify-center p-8 bg-[#080810]">
-
-        {!success ? (
-          <div className="w-full max-w-lg">
-            {/* Mobile back */}
-            <button onClick={onBack} className="md:hidden text-gray-600 hover:text-amber-400 text-sm mb-6 block">← Back</button>
-
-            <div className="mb-10">
-              <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Space Mono',monospace" }}>Initialize Wallet</h1>
-              <p className="text-gray-500 text-sm leading-relaxed">Set up your credentials to generate your unique wallet address.</p>
+              <h1 className="text-2xl font-bold text-[#1e3d12] mb-1" style={{ fontFamily: "'Lora', serif" }}>
+                {tab === "signup" ? "Create Your Wallet" : "Welcome Back"}
+              </h1>
+              <p className="text-[#7a9060] text-sm">
+                {tab === "signup" ? "Join thousands of farmers earning carbon credits" : "Sign in to your GreenLedger account"}
+              </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Tab toggle */}
+            <div className="flex bg-[#f5f2eb] rounded-xl p-1 mb-6">
+              {["signup", "login"].map((t) => (
+                <button key={t} onClick={() => { setTab(t); setErrors({}); }}
+                  className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${tab === t ? "bg-white text-[#2d5a1e] shadow-sm" : "text-[#7a9060]"}`}>
+                  {t === "signup" ? "New Farmer" : "Sign In"}
+                </button>
+              ))}
+            </div>
 
-              {/* USERNAME */}
-              <div>
-                <label className="block text-xs font-medium tracking-widest text-gray-500 uppercase mb-2">Username</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base">👤</span>
-                  <input className={inputClass("username")} placeholder="e.g. crypto_legend"
-                    value={form.username} onChange={(e) => handleChange("username", e.target.value)}
-                    onBlur={() => handleBlur("username")} />
-                  {fieldStatus("username") === "valid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">✅</span>}
-                  {fieldStatus("username") === "invalid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">❌</span>}
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {tab === "signup" && (
+                <div>
+                  <label className="block text-xs font-medium text-[#5a7045] mb-1.5 tracking-wide uppercase">Full Name</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="e.g. Ramesh Kumar"
+                    className={`w-full px-4 py-3.5 rounded-xl text-[#1e3d12] text-sm bg-[#f5f2eb] border outline-none transition-all placeholder-[#b0be98]
+                      ${errors.name ? "border-red-400" : "border-transparent focus:border-[#4a7c36] focus:bg-white focus:shadow-[0_0_0_3px_rgba(74,124,54,0.1)]"}`}
+                  />
+                  {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                 </div>
-                {errors.username && touched.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-[#5a7045] mb-1.5 tracking-wide uppercase">Email Address</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="you@example.com"
+                  className={`w-full px-4 py-3.5 rounded-xl text-[#1e3d12] text-sm bg-[#f5f2eb] border outline-none transition-all placeholder-[#b0be98]
+                    ${errors.email ? "border-red-400" : "border-transparent focus:border-[#4a7c36] focus:bg-white focus:shadow-[0_0_0_3px_rgba(74,124,54,0.1)]"}`}
+                />
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
 
-              {/* MOBILE */}
               <div>
-                <label className="block text-xs font-medium tracking-widest text-gray-500 uppercase mb-2">Mobile Number</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base">📱</span>
-                  <input className={inputClass("mobile")} placeholder="+91 98765 43210" type="tel"
-                    value={form.mobile} onChange={(e) => handleChange("mobile", e.target.value)}
-                    onBlur={() => handleBlur("mobile")} />
-                  {fieldStatus("mobile") === "valid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">✅</span>}
-                  {fieldStatus("mobile") === "invalid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">❌</span>}
-                </div>
-                {errors.mobile && touched.mobile && <p className="text-red-500 text-xs mt-1">{errors.mobile}</p>}
+                <label className="block text-xs font-medium text-[#5a7045] mb-1.5 tracking-wide uppercase">Password</label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                  className={`w-full px-4 py-3.5 rounded-xl text-[#1e3d12] text-sm bg-[#f5f2eb] border outline-none transition-all placeholder-[#b0be98]
+                    ${errors.password ? "border-red-400" : "border-transparent focus:border-[#4a7c36] focus:bg-white focus:shadow-[0_0_0_3px_rgba(74,124,54,0.1)]"}`}
+                />
+                {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
               </div>
 
-              {/* PASSWORD */}
-              <div>
-                <label className="block text-xs font-medium tracking-widest text-gray-500 uppercase mb-2">Password</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base">🔒</span>
-                  <input className={inputClass("password")} placeholder="Min 8 characters"
-                    type={showPass ? "text" : "password"}
-                    value={form.password} onChange={(e) => handleChange("password", e.target.value)}
-                    onBlur={() => handleBlur("password")} style={{ paddingRight: "5rem" }} />
-                  <button type="button" onClick={() => setShowPass(!showPass)}
-                    className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-sm transition-colors">
-                    {showPass ? "🙈" : "👁"}
-                  </button>
-                  {fieldStatus("password") === "valid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">✅</span>}
-                </div>
-                {form.password && (
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: strength.pct + "%", background: strength.color }} />
-                    </div>
-                    <span className="text-xs min-w-[60px] text-right" style={{ color: strength.color }}>{strength.label}</span>
-                  </div>
-                )}
-                {errors.password && touched.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-              </div>
-
-              {/* CONFIRM */}
-              <div>
-                <label className="block text-xs font-medium tracking-widest text-gray-500 uppercase mb-2">Confirm Password</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base">🔐</span>
-                  <input className={inputClass("confirm")} placeholder="Re-enter password"
-                    type="password" value={form.confirm}
-                    onChange={(e) => handleChange("confirm", e.target.value)}
-                    onBlur={() => handleBlur("confirm")} />
-                  {fieldStatus("confirm") === "valid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">✅</span>}
-                  {fieldStatus("confirm") === "invalid" && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">❌</span>}
-                </div>
-                {errors.confirm && touched.confirm && <p className="text-red-500 text-xs mt-1">{errors.confirm}</p>}
-              </div>
-
-              {/* TERMS */}
-              <label className="flex items-start gap-3 cursor-pointer">
-                <div className={`w-5 h-5 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${terms ? "bg-amber-400 border-amber-400" : "border-white/10 bg-white/4"}`}
-                  onClick={() => setTerms(!terms)}>
-                  {terms && <span className="text-[#080810] text-xs font-bold">✓</span>}
-                </div>
-                <input type="checkbox" className="hidden" checked={terms} onChange={() => setTerms(!terms)} />
-                <span className="text-gray-500 text-sm leading-relaxed">
-                  I agree to the <a href="#" className="text-amber-400 hover:underline">Terms of Service</a> and <a href="#" className="text-amber-400 hover:underline">Privacy Policy</a>
-                </span>
-              </label>
-
-              {/* SUBMIT */}
               <button type="submit" disabled={loading}
-                className={`w-full py-4 font-bold tracking-widest text-sm rounded transition-all flex items-center justify-center gap-3
-                ${loading ? "opacity-60 cursor-not-allowed" : "hover:bg-amber-300 hover:shadow-[0_0_25px_rgba(245,166,35,0.4)] hover:-translate-y-0.5"}
-                bg-amber-400 text-[#080810]`}
-                style={{ fontFamily: "'Space Mono',monospace" }}>
+                className="w-full py-4 text-white text-base font-semibold rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                style={{ background: "linear-gradient(135deg, #4a7c36, #5a9442)", boxShadow: "0 4px 20px rgba(74,124,54,0.3)" }}>
                 {loading ? (
-                  <div className="w-5 h-5 border-2 border-[#080810]/30 border-t-[#080810] rounded-full animate-spin" />
-                ) : "Create Wallet"}
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating wallet...
+                  </span>
+                ) : tab === "signup" ? "Create Wallet & Login" : "Sign In"}
               </button>
             </form>
 
-            <p className="text-center text-gray-600 text-sm mt-6">
-              Already have a wallet? <button className="text-amber-400 hover:underline">Sign in</button>
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-[#e8f0e0]" />
+              <span className="text-[#b0be98] text-xs">or</span>
+              <div className="flex-1 h-px bg-[#e8f0e0]" />
+            </div>
+
+            {/* MetaMask */}
+            <button onClick={handleMetaMask} disabled={metaMaskLoading}
+              className="w-full py-3.5 rounded-xl border-2 border-[#e8f0e0] bg-white text-[#1e3d12] text-sm font-medium flex items-center justify-center gap-3 hover:border-[#4a7c36] hover:bg-[#f5f2eb] transition-all disabled:opacity-60">
+              {metaMaskLoading ? (
+                <div className="w-4 h-4 border-2 border-[#4a7c36]/30 border-t-[#4a7c36] rounded-full animate-spin" />
+              ) : (
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="w-5 h-5" />
+              )}
+              Connect with MetaMask
+            </button>
+
+            <p className="text-center text-[#8a9e7a] text-xs mt-6">
+              🔒 Your data is secure and encrypted
             </p>
           </div>
-        ) : (
-          /* SUCCESS STATE */
-          <div className="text-center">
-            <div className="text-7xl mb-6">✅</div>
-            <h2 className="text-3xl font-bold text-green-400 mb-2" style={{ fontFamily: "'Space Mono',monospace" }}>Wallet Created!</h2>
-            <p className="text-gray-500 mb-8">Redirecting to your dashboard...</p>
-            <div className="w-48 h-1 bg-white/5 rounded-full mx-auto overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full animate-[fillBar_2.5s_linear_forwards]" />
-            </div>
-            <style>{`@keyframes fillBar{from{width:0}to{width:100%}}`}</style>
+        </div>
+      ) : (
+        /* Success */
+        <div className="text-center">
+          <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-6"
+            style={{ background: "linear-gradient(135deg, #eaf4e0, #d4ecbf)" }}>
+            ✅
           </div>
-        )}
-      </main>
+          <h2 className="text-2xl font-bold text-[#2d5a1e] mb-2" style={{ fontFamily: "'Lora', serif" }}>Wallet Ready!</h2>
+          <p className="text-[#7a9060] mb-6">Taking you to your dashboard...</p>
+          <div className="w-48 h-1.5 bg-[#e8f0e0] rounded-full mx-auto overflow-hidden">
+            <div className="h-full bg-[#4a7c36] rounded-full animate-[fillBar_2s_linear_forwards]" />
+          </div>
+          <style>{`@keyframes fillBar{from{width:0}to{width:100%}}`}</style>
+        </div>
+      )}
     </div>
   );
 }
