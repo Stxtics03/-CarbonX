@@ -74,13 +74,7 @@ npm run dev
 
 Each folder needs a `.env` file. See `.env.example` in each directory.
 
-## Team
 
-| Name | Role |
-|---|---|
-| Shrestha | Blockchain |
-| Yatish | Backend |
-| Bhanu | Frontend |
 
 ## Hackathon
 
