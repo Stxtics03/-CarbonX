@@ -1,0 +1,26 @@
+region,crop,avg_yield,min_yield,max_yield,unit
+Karnataka,rice,2500,1800,3200,kg/ha
+Karnataka,wheat,1800,1200,2400,kg/ha
+Karnataka,maize,3000,2000,4000,kg/ha
+Karnataka,soybean,1200,800,1600,kg/ha
+Karnataka,groundnut,1500,1000,2000,kg/ha
+Maharashtra,rice,2200,1500,3000,kg/ha
+Maharashtra,wheat,2000,1400,2600,kg/ha
+Maharashtra,soybean,1100,700,1500,kg/ha
+Maharashtra,cotton,1800,1200,2400,kg/ha
+Andhra Pradesh,rice,3000,2200,3800,kg/ha
+Andhra Pradesh,maize,3500,2500,4500,kg/ha
+Telangana,rice,2800,2000,3600,kg/ha
+Telangana,maize,3200,2200,4200,kg/ha
+Punjab,wheat,4500,3500,5500,kg/ha
+Punjab,rice,3800,3000,4600,kg/ha
+Haryana,wheat,4200,3200,5200,kg/ha
+Haryana,rice,3500,2700,4300,kg/ha
+Uttar Pradesh,wheat,3200,2400,4000,kg/ha
+Uttar Pradesh,rice,2800,2000,3600,kg/ha
+Rajasthan,wheat,2500,1700,3300,kg/ha
+Rajasthan,mustard,1200,800,1600,kg/ha
+Gujarat,cotton,2000,1400,2600,kg/ha
+Gujarat,groundnut,1800,1200,2400,kg/ha
+Tamil Nadu,rice,3200,2400,4000,kg/ha
+Tamil Nadu,sugarcane,80000,60000,100000,kg/ha
