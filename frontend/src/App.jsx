@@ -1,4 +1,3 @@
-// src/App.jsx
 import './index.css';
 import { useState } from "react";
 import WalletConnect from "./components/WalletConnect";
@@ -16,9 +15,30 @@ export default function App() {
 
   return (
     <div className="min-h-screen font-sans">
-      {page === "landing" && <WalletConnect onGetStarted={() => setPage("register")} />}
-      {page === "register" && <SubmissionForm onRegistered={handleRegistered} onBack={() => setPage("landing")} />}
-      {page === "dashboard" && <AdminDashboard user={user} onLogout={() => { setUser(null); setPage("landing"); }} />}
+      
+      {page === "landing" && (
+        <WalletConnect 
+          onGetStarted={() => setPage("register")} 
+        />
+      )}
+
+      {page === "register" && (
+        <SubmissionForm 
+          onRegistered={handleRegistered} 
+          onBack={() => setPage("landing")} 
+        />
+      )}
+
+      {page === "dashboard" && (
+        <AdminDashboard 
+          user={user} 
+          onLogout={() => {
+            setUser(null);
+            setPage("landing");
+          }} 
+        />
+      )}
+
     </div>
   );
 }
