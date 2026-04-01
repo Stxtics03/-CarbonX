@@ -3,10 +3,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useWallet } from "../hooks/useWallet";
 
 // ─── Live Market Price Hook ───────────────────────────────────────────────────
-// Generates a realistic GRN/INR price that fluctuates every 5 minutes.
-// No external API — purely simulated with a seeded random walk.
 function useMarketPrice() {
-  // Seed the initial history with 48 data points (last 4 hours at 5-min intervals)
   const seedHistory = useMemo(() => {
     const BASE = 44.8;
     const pts = [];
@@ -24,16 +21,14 @@ function useMarketPrice() {
   const [prevPrice, setPrevPrice] = useState(seedHistory[seedHistory.length - 2].price);
 
   useEffect(() => {
-    // Tick every 5 minutes (300 000 ms). Use 10 s in dev for demo feel — set to 300000 for prod.
     const INTERVAL = 5 * 60 * 1000;
     const timer = setInterval(() => {
       setHistory((prev) => {
         const last = prev[prev.length - 1].price;
         setPrevPrice(last);
-        // Bounded random walk: ±2.5 INR max swing, stays within 36-58
         const delta = (Math.random() * 5 - 2.5) * 0.8;
         const next = parseFloat(Math.max(36, Math.min(58, last + delta)).toFixed(2));
-        const newPts = [...prev.slice(-95), { price: next, time: new Date() }]; // keep last 96 pts
+        const newPts = [...prev.slice(-95), { price: next, time: new Date() }];
         return newPts;
       });
     }, INTERVAL);
@@ -49,6 +44,42 @@ function useMarketPrice() {
   const low24  = parseFloat(Math.min(...history.slice(-288).map((p) => p.price)).toFixed(2));
 
   return { history, current, change, changePct, weekChange, high24, low24, prevPrice };
+}
+
+// ─── Carbon Score Calculator ──────────────────────────────────────────────────
+// Score = weighted sum of 5 factors, normalised to 0–100
+//   • Credits held          (30%) – more GRN = higher sustainability output
+//   • Approved activity %   (25%) – share of submissions that passed review
+//   • Price trend           (20%) – positive market momentum rewards active sellers
+//   • Media uploads         (15%) – photo evidence of real farm activity
+//   • Wallet age proxy      (10%) – fixed baseline for KYC-verified wallets
+function computeCarbonScore({ credits, activity, priceChangePct, mediaCount }) {
+  const maxCredits   = 200;
+  const creditScore  = Math.min(credits / maxCredits, 1) * 30;
+
+  const approved     = activity.filter((a) => a.status === "approved").length;
+  const total        = activity.length || 1;
+  const approvalScore = (approved / total) * 25;
+
+  // price trend: clamp weekly change to ±10 %, map to 0–20
+  const trendNorm    = Math.max(-10, Math.min(10, priceChangePct));
+  const trendScore   = ((trendNorm + 10) / 20) * 20;
+
+  const maxMedia     = 20;
+  const mediaScore   = Math.min(mediaCount / maxMedia, 1) * 15;
+
+  const walletScore  = 10; // baseline for verified wallets
+
+  const raw = creditScore + approvalScore + trendScore + mediaScore + walletScore;
+  return Math.round(Math.min(100, Math.max(0, raw)));
+}
+
+function scoreLabel(score) {
+  if (score >= 90) return { label: "Elite 🏆",    color: "#fbbf24" };
+  if (score >= 75) return { label: "Top 5% 🌟",   color: "#39d98a" };
+  if (score >= 60) return { label: "Top 20% 🌿",  color: "#00f2ff" };
+  if (score >= 40) return { label: "Average 📊",  color: "#a78bfa" };
+  return               { label: "Needs Work ⚠️", color: "#f87171" };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -107,8 +138,6 @@ const MOCK_ACTIVITY = [
   { id: 6, name: "Biochar Application Field 3", status: "approved", date: "5 Mar 2026",  icon: "🔥", credits: 9,  blockHash: "0x6a7b8c9d0e", gasUsed: "0.0041 MATIC", ipfs: "QmA6cVx9bD..." },
 ];
 
-// MARKET_PRICES replaced by useMarketPrice hook — live simulated data
-
 // ─── Sub-pages ────────────────────────────────────────────────────────────────
 
 function DashboardPage({ user, credits, walletId, copyWalletId, showToast, mediaFiles, uploading, uploadFiles, stats, fileInputRef, marketPrice, navigateTo }) {
@@ -116,8 +145,23 @@ function DashboardPage({ user, credits, walletId, copyWalletId, showToast, media
   const priceUp = (marketPrice?.change ?? 0) >= 0;
   const earnings = (credits * livePrice).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   const shortWallet = walletId ? walletId.slice(0, 18) + "..." + walletId.slice(-6) : "—";
-  const [mintStep, setMintStep] = useState(0); // 0=idle,1=uploading,2=hashing,3=minted
+  const [mintStep, setMintStep] = useState(0);
   const [dragging, setDragging] = useState(false);
+
+  // ── Dynamic Carbon Score ──────────────────────────────────────────────────
+  const carbonScore = computeCarbonScore({
+    credits,
+    activity: MOCK_ACTIVITY,
+    priceChangePct: marketPrice?.weekChange ?? 0,
+    mediaCount: mediaFiles.length,
+  });
+  const { label: scoreTag, color: scoreColor } = scoreLabel(carbonScore);
+  // Stroke-dashoffset for the ring: full circle = 239, empty = 239, full = 0
+  const ringOffset = Math.round(239 - (carbonScore / 100) * 239);
+
+  // Score breakdown for tooltip
+  const approved = MOCK_ACTIVITY.filter((a) => a.status === "approved").length;
+  const approvalPct = Math.round((approved / MOCK_ACTIVITY.length) * 100);
 
   const handleDrop = (e) => {
     e.preventDefault(); setDragging(false);
@@ -316,25 +360,62 @@ function DashboardPage({ user, credits, walletId, copyWalletId, showToast, media
             </button>
           </div>
 
-          {/* Carbon Score */}
+          {/* ── Dynamic Carbon Score ── */}
           <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <p className="text-xs font-semibold tracking-widest uppercase mb-4" style={{ color: "rgba(226,232,240,0.35)" }}>Carbon Score</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "rgba(226,232,240,0.35)" }}>Carbon Score</p>
+              <Tooltip text={`Credits (30%): ${Math.min(credits,200)}/200 GRN · Approvals (25%): ${approvalPct}% · Market trend (20%) · Media (15%): ${mediaFiles.length} uploads · Wallet (10%): verified`}>
+                <span className="w-4 h-4 rounded-full flex items-center justify-center cursor-help text-xs"
+                  style={{ background: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.3)", fontSize:"10px" }}>?</span>
+              </Tooltip>
+            </div>
+
             <div className="flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-24 h-24">
+              <svg viewBox="0 0 100 100" className="w-28 h-28">
+                {/* Track */}
                 <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                <circle cx="50" cy="50" r="38" fill="none" stroke="url(#cg)" strokeWidth="8"
-                  strokeLinecap="round" strokeDasharray="239" strokeDashoffset="60" transform="rotate(-90 50 50)" />
+                {/* Score arc */}
+                <circle cx="50" cy="50" r="38" fill="none"
+                  stroke="url(#cg)" strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray="239"
+                  strokeDashoffset={ringOffset}
+                  transform="rotate(-90 50 50)"
+                  style={{ transition: "stroke-dashoffset 1s ease" }}
+                />
                 <defs>
                   <linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor="#00f2ff" />
-                    <stop offset="100%" stopColor="#39d98a" />
+                    <stop offset="100%" stopColor={scoreColor} />
                   </linearGradient>
                 </defs>
-                <text x="50" y="46" textAnchor="middle" fill="#e2e8f0" fontSize="14" fontWeight="900" fontFamily="Outfit">75</text>
-                <text x="50" y="58" textAnchor="middle" fill="rgba(226,232,240,0.35)" fontSize="7" fontFamily="Outfit">/100</text>
+                <text x="50" y="45" textAnchor="middle" fill="#e2e8f0" fontSize="16" fontWeight="900" fontFamily="Outfit">{carbonScore}</text>
+                <text x="50" y="57" textAnchor="middle" fill="rgba(226,232,240,0.35)" fontSize="7" fontFamily="Outfit">/100</text>
               </svg>
             </div>
-            <p className="text-center text-xs mt-2" style={{ color: "#39d98a" }}>Top 5% of Farmers 🏆</p>
+
+            <p className="text-center text-xs mt-1 font-semibold" style={{ color: scoreColor }}>{scoreTag}</p>
+
+            {/* Mini breakdown bars */}
+            <div className="mt-3 space-y-1.5">
+              {[
+                { label: "Credits",   pct: Math.min(credits / 200, 1) * 100,           color: "#00f2ff" },
+                { label: "Approvals", pct: approvalPct,                                 color: "#39d98a" },
+                { label: "Trend",     pct: Math.max(0, ((marketPrice?.weekChange ?? 0) + 10) / 20 * 100), color: "#a78bfa" },
+                { label: "Media",     pct: Math.min(mediaFiles.length / 20, 1) * 100,  color: "#fbbf24" },
+              ].map((b) => (
+                <div key={b.label}>
+                  <div className="flex justify-between text-xs mb-0.5" style={{ color: "rgba(226,232,240,0.35)" }}>
+                    <span style={{ fontSize: "9px" }}>{b.label}</span>
+                    <span style={{ fontSize: "9px" }}>{Math.round(b.pct)}%</span>
+                  </div>
+                  <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${b.pct}%`, background: b.color, opacity: 0.8 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -411,7 +492,6 @@ function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats
             </div>
             <h4 className="font-bold text-sm mb-0.5">{plot.name}</h4>
             <p className="text-xs mb-4" style={{ color: "rgba(226,232,240,0.4)" }}>{plot.area} · {plot.sensors} IoT sensors</p>
-            {/* Health gauge */}
             <div>
               <div className="flex justify-between text-xs mb-1.5">
                 <span style={{ color: "rgba(226,232,240,0.4)" }}>Health Score</span>
@@ -440,7 +520,6 @@ function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e)=>{uploadFiles(e.target.files);e.target.value="";}} />
         </div>
 
-        {/* Filter */}
         <div className="flex gap-2 mb-4">
           {["all","image","video"].map((f) => (
             <button key={f} onClick={() => setFilter(f)}
@@ -501,7 +580,7 @@ function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats
       </div>
 
       {lightbox && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.95)",  }}
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.95)" }}
           onClick={(e)=>{ if(e.target===e.currentTarget) setLightbox(null); }}>
           <button onClick={()=>setLightbox(null)} className="absolute top-5 right-7 text-2xl" style={{ color:"rgba(226,232,240,0.5)" }}>✕</button>
           <div className="relative max-w-3xl w-full px-4">
@@ -538,15 +617,11 @@ function LiveLineChart({ history }) {
   const fillPts = `${toX(0)},${H} ${pts} ${toX(prices.length - 1)},${H}`;
   const isUp = prices[prices.length - 1] >= prices[0];
   const stroke = isUp ? "#39d98a" : "#f87171";
-  const fillTop = isUp ? "rgba(57,217,138,0.18)" : "rgba(248,113,113,0.15)";
-  const fillBot = "rgba(7,11,18,0)";
   const gradId = isUp ? "lineGradUp" : "lineGradDown";
 
-  // Last point dot
   const lx = toX(prices.length - 1);
   const ly = toY(prices[prices.length - 1]);
 
-  // X-axis labels: show every 8th point (≈40 min interval)
   const labelIdxs = [0, Math.floor(prices.length / 4), Math.floor(prices.length / 2), Math.floor(prices.length * 3 / 4), prices.length - 1];
 
   return (
@@ -557,22 +632,17 @@ function LiveLineChart({ history }) {
           <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
-      {/* Grid lines */}
       {[0.25, 0.5, 0.75].map((f, i) => (
         <line key={i} x1={PAD} x2={W - PAD} y1={PAD + f * (H - PAD * 2)} y2={PAD + f * (H - PAD * 2)}
           stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
       ))}
-      {/* Fill area */}
       <polygon points={fillPts} fill={`url(#${gradId})`} />
-      {/* Line */}
       <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-      {/* Live dot */}
       <circle cx={lx} cy={ly} r="4" fill={stroke} style={{ filter: `drop-shadow(0 0 6px ${stroke})` }} />
       <circle cx={lx} cy={ly} r="8" fill={stroke} opacity="0.2">
         <animate attributeName="r" values="4;10;4" dur="2s" repeatCount="indefinite" />
         <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
       </circle>
-      {/* X labels */}
       {labelIdxs.map((idx) => {
         const t = history[idx]?.time;
         const label = t ? t.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "";
@@ -586,21 +656,19 @@ function LiveLineChart({ history }) {
 }
 
 function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
-  const [tradeTab, setTradeTab]       = useState("sell");
-  const [amount, setAmount]           = useState("");
-  const [timeRange, setTimeRange]     = useState("4H");
+  const [tradeTab, setTradeTab]         = useState("sell");
+  const [amount, setAmount]             = useState("");
+  const [timeRange, setTimeRange]       = useState("4H");
   const [confirmation, setConfirmation] = useState(null);
-  const [inputError, setInputError]   = useState("");
+  const [inputError, setInputError]     = useState("");
 
-  // ── Price alert state ──────────────────────────────────────────────────────
-  const [alertTarget, setAlertTarget] = useState("");
-  const [alertDir, setAlertDir]       = useState("above"); // "above" | "below"
-  const [activeAlerts, setActiveAlerts] = useState([]);    // [{id, target, dir, triggered}]
-  const [firedAlert, setFiredAlert]   = useState(null);    // alert that just fired
+  const [alertTarget, setAlertTarget]   = useState("");
+  const [alertDir, setAlertDir]         = useState("above");
+  const [activeAlerts, setActiveAlerts] = useState([]);
+  const [firedAlert, setFiredAlert]     = useState(null);
 
   const { history, current, change, changePct, weekChange, high24, low24 } = marketPrice;
 
-  // Check alerts every time price updates
   useEffect(() => {
     setActiveAlerts((prev) =>
       prev.map((a) => {
@@ -615,7 +683,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
     );
   }, [current]); // eslint-disable-line
 
-  // Auto-dismiss fired alert banner after 8 s
   useEffect(() => {
     if (!firedAlert) return;
     const t = setTimeout(() => setFiredAlert(null), 8000);
@@ -636,21 +703,18 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
   const rangeMap = { "1H": 12, "4H": 48, "1D": 288, ALL: history.length };
   const visibleHistory = history.slice(-Math.min(rangeMap[timeRange] ?? 48, history.length));
 
-  const isUp      = change >= 0;
+  const isUp       = change >= 0;
   const priceColor = isUp ? "#39d98a" : "#f87171";
 
-  // Wallet INR balance = credits × current price (live)
-  const walletInr = (credits * current);
+  const walletInr  = (credits * current);
 
-  // Sell tab calcs
-  const sellQty      = parseFloat(amount) || 0;
-  const sellGross    = (sellQty * current).toFixed(2);
-  const sellNet      = (sellQty * current * 0.985).toFixed(2);
+  const sellQty    = parseFloat(amount) || 0;
+  const sellGross  = (sellQty * current).toFixed(2);
+  const sellNet    = (sellQty * current * 0.985).toFixed(2);
 
-  // Withdraw tab calcs
-  const withdrawInr  = parseFloat(amount) || 0;
-  const withdrawGrn  = current > 0 ? (withdrawInr / current).toFixed(4) : "0";
-  const withdrawNet  = (withdrawInr * 0.985).toFixed(2);
+  const withdrawInr = parseFloat(amount) || 0;
+  const withdrawGrn = current > 0 ? (withdrawInr / current).toFixed(4) : "0";
+  const withdrawNet = (withdrawInr * 0.985).toFixed(2);
 
   const executeTrade = () => {
     setInputError("");
@@ -662,9 +726,7 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
       setCredits((prev) => parseFloat((prev - qty).toFixed(4)));
       setConfirmation({ type: "sell", grn: qty, gross: sellGross, net: sellNet });
       setAmount("");
-
     } else {
-      // Withdraw: user enters INR amount → deduct equivalent GRN
       const grnNeeded = parseFloat(withdrawGrn);
       if (withdrawInr > walletInr) { setInputError(`Insufficient wallet balance (≈ ₹${walletInr.toFixed(0)})`); return; }
       setCredits((prev) => parseFloat(Math.max(0, prev - grnNeeded).toFixed(4)));
@@ -676,7 +738,7 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
   return (
     <div className="space-y-6">
 
-      {/* ── Fired Alert Banner ── */}
+      {/* Fired Alert Banner */}
       {firedAlert && (
         <div className="rounded-2xl px-5 py-4 flex items-center gap-4"
           style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.4)", boxShadow: "0 0 24px rgba(251,191,36,0.15)" }}>
@@ -706,7 +768,7 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        {/* ── Chart panel ── */}
+        {/* Chart panel */}
         <div className="lg:col-span-2 rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
             <div>
@@ -764,7 +826,7 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
           </div>
         </div>
 
-        {/* ── Trade widget ── */}
+        {/* Trade widget */}
         <div className="space-y-4">
           <div className="rounded-2xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <div>
@@ -774,7 +836,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               </p>
             </div>
 
-            {/* Tab switcher */}
             <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
               {["sell", "withdraw"].map((t) => (
                 <button key={t} onClick={() => { setTradeTab(t); setAmount(""); setInputError(""); }}
@@ -785,7 +846,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               ))}
             </div>
 
-            {/* Input */}
             <div>
               <label className="text-xs font-semibold tracking-widest uppercase mb-1.5 block" style={{ color: "rgba(0,242,255,0.6)" }}>
                 {tradeTab === "sell" ? "Credits to Sell (GRN)" : "Amount to Withdraw (₹)"}
@@ -799,7 +859,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               )}
             </div>
 
-            {/* Sell preview */}
             {tradeTab === "sell" && amount && parseFloat(amount) > 0 && (
               <div className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(57,217,138,0.06)", border: "1px solid rgba(57,217,138,0.15)" }}>
                 <div className="flex justify-between text-xs">
@@ -821,7 +880,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               </div>
             )}
 
-            {/* Withdraw preview */}
             {tradeTab === "withdraw" && amount && parseFloat(amount) > 0 && (
               <div className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(0,242,255,0.05)", border: "1px solid rgba(0,242,255,0.15)" }}>
                 <div className="flex justify-between text-xs">
@@ -839,7 +897,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               </div>
             )}
 
-            {/* Balance row */}
             <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
               <div className="flex justify-between text-xs font-mono-code">
                 <span style={{ color: "rgba(226,232,240,0.4)" }}>GRN Balance</span>
@@ -858,14 +915,13 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
             </button>
           </div>
 
-          {/* ── Price Alert panel ── */}
+          {/* Price Alert panel */}
           <div className="rounded-2xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <div>
               <h3 className="font-bold text-sm">🔔 Price Alerts</h3>
               <p className="text-xs mt-0.5" style={{ color: "rgba(226,232,240,0.4)" }}>Get notified when GRN hits your target</p>
             </div>
 
-            {/* Direction toggle */}
             <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
               {[{ v: "above", label: "▲ Above" }, { v: "below", label: "▼ Below" }].map(({ v, label }) => (
                 <button key={v} onClick={() => setAlertDir(v)}
@@ -878,7 +934,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               ))}
             </div>
 
-            {/* Target input */}
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono-code" style={{ color: "rgba(226,232,240,0.35)" }}>₹</span>
@@ -895,7 +950,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
               </button>
             </div>
 
-            {/* Active alerts list */}
             {activeAlerts.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs tracking-widest uppercase" style={{ color: "rgba(226,232,240,0.3)" }}>Active Alerts</p>
@@ -930,7 +984,7 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
         </div>
       </div>
 
-      {/* ── Trade Confirmation Modal ── */}
+      {/* ── Trade Confirmation Modal — FIXED: .map() now applies to both sell and withdraw arrays ── */}
       {confirmation && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center px-4"
           style={{ background: "rgba(7,11,18,0.85)", backdropFilter: "blur(8px)" }}>
@@ -951,7 +1005,8 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
 
             <div className="rounded-2xl p-4 mb-5 text-left space-y-2.5"
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              {confirmation.type === "sell" ? [
+              {/* BUG FIX: wrap the ternary in () so .map() applies to the result of both branches */}
+              {(confirmation.type === "sell" ? [
                 { label: "GRN Sold",    val: `${confirmation.grn} GRN`,  color: "#f87171" },
                 { label: "Gross INR",   val: `₹${confirmation.gross}`,   color: "#e2e8f0" },
                 { label: "Fee (1.5%)",  val: `− ₹${(parseFloat(confirmation.gross)*0.015).toFixed(2)}`, color: "rgba(226,232,240,0.4)" },
@@ -961,7 +1016,7 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
                 { label: "Requested",    val: `₹${confirmation.inr}`,    color: "#e2e8f0" },
                 { label: "Fee (1.5%)",   val: `− ₹${(parseFloat(confirmation.inr)*0.015).toFixed(2)}`, color: "rgba(226,232,240,0.4)" },
                 { label: "Net to Bank",  val: `₹${confirmation.net}`,    color: "#00f2ff" },
-              ].map((r) => (
+              ]).map((r) => (
                 <div key={r.label} className="flex justify-between text-xs font-mono-code">
                   <span style={{ color: "rgba(226,232,240,0.45)" }}>{r.label}</span>
                   <span className="font-bold" style={{ color: r.color }}>{r.val}</span>
@@ -992,7 +1047,6 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
   );
 }
 
-
 // ─── History ──────────────────────────────────────────────────────────────────
 function HistoryPage({ showToast }) {
   const [expanded, setExpanded] = useState(null);
@@ -1005,7 +1059,7 @@ function HistoryPage({ showToast }) {
       </div>
 
       <div className="space-y-3">
-        {MOCK_ACTIVITY.map((item, i) => (
+        {MOCK_ACTIVITY.map((item) => (
           <div key={item.id} className="rounded-2xl overflow-hidden transition-all"
             style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
             <button className="w-full flex items-center gap-4 p-4 text-left"
@@ -1065,7 +1119,6 @@ function SecurityPage({ walletId, showToast }) {
         <p className="text-sm mt-1" style={{ color:"rgba(226,232,240,0.4)" }}>Wallet management & access control</p>
       </div>
 
-      {/* Shield */}
       <div className="rounded-2xl p-8 text-center" style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
         <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-3 animate-pulse-glow"
           style={{ background:"linear-gradient(135deg,rgba(57,217,138,0.12),rgba(0,242,255,0.12))", border:"1px solid rgba(57,217,138,0.3)" }}>
@@ -1077,7 +1130,6 @@ function SecurityPage({ walletId, showToast }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Wallet Management */}
         <div className="rounded-2xl p-5 space-y-4" style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
           <h3 className="font-bold text-sm">Wallet Management</h3>
           <div>
@@ -1101,7 +1153,6 @@ function SecurityPage({ walletId, showToast }) {
           </div>
         </div>
 
-        {/* Device History */}
         <div className="rounded-2xl p-5" style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
           <h3 className="font-bold text-sm mb-4">Device History</h3>
           {[
@@ -1122,7 +1173,6 @@ function SecurityPage({ walletId, showToast }) {
           ))}
         </div>
 
-        {/* Recovery */}
         <div className="rounded-2xl p-5" style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
           <h3 className="font-bold text-sm mb-1">Recovery Phrase</h3>
           <p className="text-xs mb-4" style={{ color:"rgba(239,68,68,0.7)" }}>⚠ Never share this with anyone</p>
@@ -1193,7 +1243,7 @@ function GalleryPage({ mediaFiles, showToast }) {
       </div>
 
       {lightbox && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.96)",  }}
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.96)" }}
           onClick={(e) => { if(e.target===e.currentTarget) setLightbox(null); }}>
           <button onClick={() => setLightbox(null)} className="absolute top-5 right-7 text-2xl" style={{ color:"rgba(226,232,240,0.5)" }}>✕</button>
           <div className="max-w-3xl w-full px-4">
@@ -1236,11 +1286,9 @@ export default function AdminDashboard({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState("");
-  // Credits lifted to top-level so trades can reduce them
   const [credits, setCredits] = useState(user?.credits ?? 68);
   const fileInputRef = useRef(null);
 
-  // Use MetaMask wallet address from user object — no regeneration
   const walletId = user?.walletId ?? null;
   const copyWalletId = useCallback(() => {
     if (walletId) navigator.clipboard.writeText(walletId).catch(() => {});
@@ -1265,7 +1313,6 @@ export default function AdminDashboard({ user, onLogout }) {
       <aside className={`fixed top-0 left-0 h-full w-56 flex flex-col z-50 transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
         style={{ background:"#0c1220", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
 
-        {/* Logo */}
         <div className="p-5 pb-0">
           <div className="flex items-center gap-2.5 mb-8">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
@@ -1277,7 +1324,6 @@ export default function AdminDashboard({ user, onLogout }) {
             </span>
           </div>
 
-          {/* Nav */}
           <nav className="space-y-1">
             {NAV_ITEMS.map((item) => (
               <button key={item.id} onClick={() => { setPage(item.id); setSidebarOpen(false); }}
@@ -1295,7 +1341,6 @@ export default function AdminDashboard({ user, onLogout }) {
           </nav>
         </div>
 
-        {/* User card */}
         <div className="mt-auto p-5">
           <div className="rounded-xl p-3" style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)" }}>
             <div className="flex items-center gap-2.5">
@@ -1316,13 +1361,11 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
       </aside>
 
-      {/* Overlay */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* ── MAIN ── */}
       <div className="flex-1 md:ml-56 flex flex-col min-h-screen">
 
-        {/* Floating top nav */}
         <div className="sticky top-4 z-30 px-4 md:px-6">
           <div className="nav-pill rounded-2xl px-5 py-3 flex items-center justify-between"
             style={{ boxShadow:"0 4px 30px rgba(0,0,0,0.5)" }}>
@@ -1336,7 +1379,6 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
 
-            {/* Center links - desktop */}
             <div className="hidden md:flex items-center gap-1">
               {NAV_ITEMS.slice(0,4).map((item) => (
                 <button key={item.id} onClick={() => setPage(item.id)}
@@ -1347,13 +1389,11 @@ export default function AdminDashboard({ user, onLogout }) {
               ))}
             </div>
 
-            {/* Right */}
             <div className="flex items-center gap-3">
               <div className="relative cursor-pointer text-lg">
                 🔔
                 <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full" style={{ background:"#00f2ff", boxShadow:"0 0 6px #00f2ff" }} />
               </div>
-
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black cursor-pointer"
                 style={{ background:"linear-gradient(135deg,#00c6d7,#39d98a)", color:"#070b12" }}>
                 {initials(user?.username)}
@@ -1362,7 +1402,6 @@ export default function AdminDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Page content */}
         <main className="flex-1 px-4 md:px-8 py-6 max-w-6xl w-full mx-auto">
           {page === "dashboard" && <DashboardPage {...pageProps} />}
           {page === "assets"    && <FarmAssetsPage {...pageProps} />}
@@ -1380,7 +1419,6 @@ export default function AdminDashboard({ user, onLogout }) {
         {toast}
       </div>
 
-      {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden
         onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }} />
     </div>
