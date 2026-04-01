@@ -15,7 +15,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen text-[#1e3d12] font-sans">
+    <div className="min-h-screen font-sans">
       {page === "landing" && <WalletConnect onGetStarted={() => setPage("register")} />}
       {page === "register" && <SubmissionForm onRegistered={handleRegistered} onBack={() => setPage("landing")} />}
       {page === "dashboard" && <AdminDashboard user={user} onLogout={() => { setUser(null); setPage("landing"); }} />}

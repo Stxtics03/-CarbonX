@@ -42,7 +42,14 @@ export function useWallet(initialUser) {
             setUploading((prev) => prev.filter((u) => u.id !== id));
             setMediaFiles((prev) => [
               ...prev,
-              { id, name: file.name, type: isImage ? "image" : "video", url, size: file.size, sizeLabel: formatSize(file.size) },
+              {
+                id, name: file.name, type: isImage ? "image" : "video", url,
+                size: file.size, sizeLabel: formatSize(file.size),
+                gps: `${(13.0 + Math.random()).toFixed(4)}°N, ${(77.5 + Math.random()).toFixed(4)}°E`,
+                timestamp: new Date().toISOString(),
+                blockHash: `0x${Array.from({length:16}, () => "0123456789abcdef"[Math.floor(Math.random()*16)]).join("")}`,
+                ipfsHash: `Qm${Array.from({length:20}, () => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789"[Math.floor(Math.random()*58)]).join("")}`,
+              },
             ]);
           }, 600);
         }
