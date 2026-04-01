@@ -1,3 +1,6 @@
+<<<<<<< HEAD
+CarbonX — AEGIS-Style Dashboard
+=======
 # MRV Carbon Credit Platform
 
 A blockchain-powered platform for smallholder farmers in India to earn carbon credits through verified crop data submission.
@@ -81,3 +84,4 @@ Each folder needs a `.env` file. See `.env.example` in each directory.
 **BGSCET Hackathon** — Domain: Blockchain
 
 > AI guarantees accuracy. Blockchain guarantees honesty. Neither works without the other.
+>>>>>>> 06398a17634c3dab79b47aa6b8cfa85169ca06a3
