@@ -71,13 +71,11 @@ body {
 
 .glass {
   background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.08);
 }
 
 .glass-dark {
-  background: rgba(7,11,18,0.8);
-  backdrop-filter: blur(20px);
+  background: #0c1220;
   border: 1px solid rgba(255,255,255,0.06);
 }
 
@@ -85,8 +83,7 @@ body {
 .glow-green { box-shadow: 0 0 20px rgba(57,217,138,0.4); }
 
 .nav-pill {
-  background: rgba(7,11,18,0.75);
-  backdrop-filter: blur(24px);
+  background: #0c1220;
   border: 1px solid rgba(255,255,255,0.09);
 }
 

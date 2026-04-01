@@ -452,7 +452,7 @@ function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats
       </div>
 
       {lightbox && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.95)", backdropFilter:"blur(12px)" }}
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.95)",  }}
           onClick={(e)=>{ if(e.target===e.currentTarget) setLightbox(null); }}>
           <button onClick={()=>setLightbox(null)} className="absolute top-5 right-7 text-2xl" style={{ color:"rgba(226,232,240,0.5)" }}>✕</button>
           <div className="relative max-w-3xl w-full px-4">
@@ -822,7 +822,7 @@ function GalleryPage({ mediaFiles, showToast }) {
       </div>
 
       {lightbox && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.96)", backdropFilter:"blur(16px)" }}
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background:"rgba(7,11,18,0.96)",  }}
           onClick={(e) => { if(e.target===e.currentTarget) setLightbox(null); }}>
           <button onClick={() => setLightbox(null)} className="absolute top-5 right-7 text-2xl" style={{ color:"rgba(226,232,240,0.5)" }}>✕</button>
           <div className="max-w-3xl w-full px-4">
@@ -884,7 +884,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {/* ── SIDEBAR ── */}
       <aside className={`fixed top-0 left-0 h-full w-56 flex flex-col z-50 transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
-        style={{ background:"rgba(255,255,255,0.025)", borderRight:"1px solid rgba(255,255,255,0.06)", backdropFilter:"blur(20px)" }}>
+        style={{ background:"#0c1220", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
 
         {/* Logo */}
         <div className="p-5 pb-0">
@@ -1000,7 +1000,7 @@ export default function AdminDashboard({ user, onLogout }) {
       {/* ── TOAST ── */}
       <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-300 font-mono-code
         ${toast ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
-        style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(0,242,255,0.3)", color:"#e2e8f0", backdropFilter:"blur(16px)", boxShadow:"0 0 20px rgba(0,242,255,0.2)" }}>
+        style={{ background:"#0e1826", border:"1px solid rgba(0,242,255,0.3)", color:"#e2e8f0", boxShadow:"0 0 20px rgba(0,242,255,0.2)" }}>
         {toast}
       </div>
 
