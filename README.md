@@ -6,7 +6,7 @@
 
 🎥 Demo Video | [https://drive.google.com/file/d/1ghOpESsIZMJ5dx5kZwNEqL6hZWI6ietp/view?usp=sharing](#) 
 
-📊 Presentation (PPT) | https://docs.google.com/presentation/d/1_2cBuN0rAdd36r0gvoUJA65-po6VGU5C/edit?usp=sharing&ouid=100983011210667868654&rtpof=true&sd=true
+📊 Presentation (PPT) | [https://docs.google.com/presentation/d/1TSvZBxMV-R6f5eZMKMKKe1IHbS6wxwVN/edit?usp=sharing&ouid=114362644006948224541&rtpof=true&sd=true] (#)
 ---
 
 ## 📌 The Problem
