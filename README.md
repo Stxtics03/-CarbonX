@@ -4,8 +4,7 @@
 
 ##  🔗  Project Links
 
-🎥 Demo Video | [https://drive.google.com/file/d/1ghOpESsIZMJ5dx5kZwNEqL6hZWI6ietp/view?usp=sharing](#) 
-
+🎥 Demo Video | https://drive.google.com/file/d/1ghOpESsIZMJ5dx5kZwNEqL6hZWI6ietp/view?usp=sharing
 📊 Presentation (PPT) | https://docs.google.com/presentation/d/1TSvZBxMV-R6f5eZMKMKKe1IHbS6wxwVN/edit?usp=sharing&ouid=114362644006948224541&rtpof=true&sd=true
 ---
 
