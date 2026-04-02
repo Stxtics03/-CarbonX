@@ -129,61 +129,42 @@ function StatCard({ icon, label, value, sub, accent = "#00f2ff", tooltip }) {
   );
 }
 
-const MOCK_ACTIVITY = [
-  { id: 1, name: "Rice Field — North Block",   status: "approved", date: "28 Mar 2026", icon: "🌾", credits: 12, blockHash: "0x4f8a1b2c3d", gasUsed: "0.0032 MATIC", ipfs: "QmX9fYz2aB..." },
-  { id: 2, name: "Organic Compost Pit",         status: "pending",  date: "30 Mar 2026", icon: "♻️", credits: 8,  blockHash: "0x7c5d9e1f2a", gasUsed: "—",          ipfs: "Pending..."  },
-  { id: 3, name: "Drip Irrigation Setup",       status: "pending",  date: "31 Mar 2026", icon: "💧", credits: 15, blockHash: "0x2e3f4a5b6c", gasUsed: "—",          ipfs: "Pending..."  },
-  { id: 4, name: "Tree Plantation Row A",       status: "approved", date: "15 Mar 2026", icon: "🌳", credits: 20, blockHash: "0x9d0e1f2a3b", gasUsed: "0.0028 MATIC", ipfs: "QmY8eXz1bC..." },
-  { id: 5, name: "Solar Pump System",           status: "rejected", date: "10 Mar 2026", icon: "☀️", credits: 0,  blockHash: "0x1b2c3d4e5f", gasUsed: "0.0018 MATIC", ipfs: "QmZ7dWy0aC..." },
-  { id: 6, name: "Biochar Application Field 3", status: "approved", date: "5 Mar 2026",  icon: "🔥", credits: 9,  blockHash: "0x6a7b8c9d0e", gasUsed: "0.0041 MATIC", ipfs: "QmA6cVx9bD..." },
-];
+const MOCK_ACTIVITY = [];
 
 // ─── Sub-pages ────────────────────────────────────────────────────────────────
 
-function DashboardPage({ user, credits, walletId, copyWalletId, showToast, mediaFiles, uploading, uploadFiles, stats, fileInputRef, marketPrice, navigateTo }) {
+function DashboardPage({ user, credits, setCredits, walletId, copyWalletId, showToast, mediaFiles, uploading, uploadFiles, stats, fileInputRef, marketPrice, navigateTo, mintAndAward, mintStep, lastMinted, activityLog }) {
   const livePrice = marketPrice?.current ?? 44.8;
   const priceUp = (marketPrice?.change ?? 0) >= 0;
   const earnings = (credits * livePrice).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   const shortWallet = walletId ? walletId.slice(0, 18) + "..." + walletId.slice(-6) : "—";
-  const [mintStep, setMintStep] = useState(0);
   const [dragging, setDragging] = useState(false);
 
-  // ── Dynamic Carbon Score ──────────────────────────────────────────────────
+  // ── Dynamic Carbon Score — uses live activityLog ──────────────────────────
   const carbonScore = computeCarbonScore({
     credits,
-    activity: MOCK_ACTIVITY,
+    activity: activityLog,
     priceChangePct: marketPrice?.weekChange ?? 0,
     mediaCount: mediaFiles.length,
   });
   const { label: scoreTag, color: scoreColor } = scoreLabel(carbonScore);
-  // Stroke-dashoffset for the ring: full circle = 239, empty = 239, full = 0
   const ringOffset = Math.round(239 - (carbonScore / 100) * 239);
 
-  // Score breakdown for tooltip
-  const approved = MOCK_ACTIVITY.filter((a) => a.status === "approved").length;
-  const approvalPct = Math.round((approved / MOCK_ACTIVITY.length) * 100);
+  const approved = activityLog.filter((a) => a.status === "approved").length;
+  const approvalPct = activityLog.length > 0 ? Math.round((approved / activityLog.length) * 100) : 0;
 
   const handleDrop = (e) => {
-    e.preventDefault(); setDragging(false);
-    uploadFiles(e.dataTransfer.files);
-    setMintStep(1);
-    setTimeout(() => setMintStep(2), 2000);
-    setTimeout(() => { setMintStep(3); showToast("🎉 Credits minted successfully!"); }, 4500);
-    setTimeout(() => setMintStep(0), 7000);
+    e.preventDefault();
+    setDragging(false);
+    mintAndAward(e.dataTransfer.files);
   };
 
-  const handleBrowse = (files) => {
-    uploadFiles(files);
-    setMintStep(1);
-    setTimeout(() => setMintStep(2), 2000);
-    setTimeout(() => { setMintStep(3); showToast("🎉 Credits minted successfully!"); }, 4500);
-    setTimeout(() => setMintStep(0), 7000);
-  };
+  const handleBrowse = (files) => mintAndAward(files);
 
   const mintSteps = [
     { label: "Proof Uploaded", icon: "📤" },
-    { label: "Data Anchored", icon: "⛓️", detail: "IPFS hashing..." },
-    { label: "Credit Minted", icon: "💎", detail: "On Polygon" },
+    { label: "Data Anchored",  icon: "⛓️" },
+    { label: mintStep === 3 && lastMinted ? `+${lastMinted} GRN` : "Credit Minted", icon: "💎" },
   ];
 
   return (
@@ -333,6 +314,20 @@ function DashboardPage({ user, credits, walletId, copyWalletId, showToast, media
                   );
                 })}
               </div>
+
+              {/* GRN awarded banner — shows when minting completes */}
+              {mintStep === 3 && lastMinted > 0 && (
+                <div className="mt-4 rounded-xl px-4 py-3 flex items-center gap-3"
+                  style={{ background: "rgba(57,217,138,0.1)", border: "1px solid rgba(57,217,138,0.4)", boxShadow: "0 0 16px rgba(57,217,138,0.12)" }}>
+                  <span className="text-xl">💎</span>
+                  <div>
+                    <p className="text-sm font-black" style={{ color: "#39d98a" }}>+{lastMinted} GRN added to your wallet!</p>
+                    <p className="text-xs mt-0.5 font-mono-code" style={{ color: "rgba(226,232,240,0.4)" }}>
+                      Balance: {credits} GRN · ≈ ₹{(credits * livePrice).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -423,41 +418,45 @@ function DashboardPage({ user, credits, walletId, copyWalletId, showToast, media
       {/* Recent Activity */}
       <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
         <h3 className="font-bold text-sm mb-4">Recent Activity</h3>
-        <div className="space-y-2">
-          {MOCK_ACTIVITY.slice(0, 4).map((item) => (
-            <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/[0.02]"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-              <span className="text-xl shrink-0">{item.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{item.name}</p>
-                <p className="text-xs font-mono-code mt-0.5" style={{ color: "rgba(226,232,240,0.3)" }}>{item.date}</p>
+        {activityLog.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-3xl mb-2">📋</p>
+            <p className="text-xs" style={{ color: "rgba(226,232,240,0.3)" }}>No activity yet — upload farm photos to earn GRN</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activityLog.slice(0, 4).map((item) => (
+              <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl transition-all hover:bg-white/[0.02]"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                <span className="text-xl shrink-0">{item.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{item.name}</p>
+                  <p className="text-xs font-mono-code mt-0.5" style={{ color: "rgba(226,232,240,0.3)" }}>{item.date}</p>
+                </div>
+                {item.credits > 0 && (
+                  <span className="text-xs font-bold font-mono-code" style={{ color: "#00f2ff" }}>+{item.credits} GRN</span>
+                )}
+                {item.credits < 0 && (
+                  <span className="text-xs font-bold font-mono-code" style={{ color: "#f87171" }}>{item.credits} GRN</span>
+                )}
+                <Badge status={item.status} />
               </div>
-              {item.credits > 0 && (
-                <span className="text-xs font-bold font-mono-code" style={{ color: "#00f2ff" }}>+{item.credits} GRN</span>
-              )}
-              <Badge status={item.status} />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ─── Farm Assets ──────────────────────────────────────────────────────────────
-function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats, fileInputRef, showToast }) {
+function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats, fileInputRef, showToast, mintAndAward }) {
   const [view, setView] = useState("grid");
   const [filter, setFilter] = useState("all");
   const [lightbox, setLightbox] = useState(null);
   const [dragging, setDragging] = useState(false);
 
   const filtered = filter === "all" ? mediaFiles : mediaFiles.filter((m) => m.type === filter);
-
-  const mockPlots = [
-    { id:"p1", name:"North Block — Rice", area:"2.3 ha", health:88, sensors:3, img:"🌾", status:"approved" },
-    { id:"p2", name:"East Field — Wheat",  area:"1.7 ha", health:72, sensors:2, img:"🌿", status:"pending"  },
-    { id:"p3", name:"Compost Zone A",      area:"0.5 ha", health:95, sensors:1, img:"♻️", status:"approved" },
-  ];
 
   return (
     <div className="space-y-6">
@@ -478,46 +477,19 @@ function FarmAssetsPage({ mediaFiles, uploading, uploadFiles, deleteMedia, stats
         </div>
       </div>
 
-      {/* Plot cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {mockPlots.map((plot) => (
-          <div key={plot.id} className="rounded-2xl p-5 transition-all hover:-translate-y-0.5"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                {plot.img}
-              </div>
-              <Badge status={plot.status} />
-            </div>
-            <h4 className="font-bold text-sm mb-0.5">{plot.name}</h4>
-            <p className="text-xs mb-4" style={{ color: "rgba(226,232,240,0.4)" }}>{plot.area} · {plot.sensors} IoT sensors</p>
-            <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span style={{ color: "rgba(226,232,240,0.4)" }}>Health Score</span>
-                <span style={{ color: plot.health > 80 ? "#39d98a" : "#fbbf24" }}>{plot.health}%</span>
-              </div>
-              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                <div className="h-full rounded-full transition-all" style={{ width:`${plot.health}%`, background: plot.health>80 ? "linear-gradient(90deg,#39d98a,#00f2ff)" : "linear-gradient(90deg,#fbbf24,#f97316)" }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Upload zone */}
       <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
         <h3 className="font-bold text-sm mb-4">Media Library <span className="font-mono-code text-xs ml-2" style={{ color:"rgba(226,232,240,0.3)" }}>{stats.photos} photos · {stats.videos} videos · {stats.storage}</span></h3>
 
         <div onDragOver={(e)=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)}
-          onDrop={(e)=>{e.preventDefault();setDragging(false);uploadFiles(e.dataTransfer.files)}}
+          onDrop={(e)=>{e.preventDefault();setDragging(false);mintAndAward(e.dataTransfer.files)}}
           onClick={() => fileInputRef.current?.click()}
           className="rounded-2xl p-6 text-center cursor-pointer transition-all mb-4"
           style={{ border: `2px dashed ${dragging?"rgba(0,242,255,0.5)":"rgba(255,255,255,0.08)"}`, background: dragging?"rgba(0,242,255,0.05)":"transparent" }}>
           <p className="text-3xl mb-2">☁️</p>
           <p className="text-sm font-semibold">Drag & drop or click to upload</p>
           <p className="text-xs mt-1" style={{ color:"rgba(226,232,240,0.3)" }}>Images & videos up to 50MB</p>
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e)=>{uploadFiles(e.target.files);e.target.value="";}} />
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e)=>{mintAndAward(e.target.files);e.target.value="";}} />
         </div>
 
         <div className="flex gap-2 mb-4">
@@ -655,7 +627,7 @@ function LiveLineChart({ history }) {
   );
 }
 
-function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
+function MarketPage({ user, credits, setCredits, showToast, marketPrice, addActivity }) {
   const [tradeTab, setTradeTab]         = useState("sell");
   const [amount, setAmount]             = useState("");
   const [timeRange, setTimeRange]       = useState("4H");
@@ -725,12 +697,40 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
       if (qty > credits) { setInputError(`Insufficient balance (you have ${credits} GRN)`); return; }
       setCredits((prev) => parseFloat((prev - qty).toFixed(4)));
       setConfirmation({ type: "sell", grn: qty, gross: sellGross, net: sellNet });
+      // Log sell to history
+      addActivity({
+        id: Date.now() + Math.random(),
+        name: `Sold ${qty} GRN @ ₹${current}`,
+        status: "approved",
+        date: todayStr(),
+        icon: "💱",
+        credits: -qty,
+        blockHash: randHash(),
+        gasUsed: `${(Math.random() * 0.004 + 0.001).toFixed(4)} MATIC`,
+        ipfs: randIpfs(),
+        type: "sell",
+        inr: sellNet,
+      });
       setAmount("");
     } else {
       const grnNeeded = parseFloat(withdrawGrn);
       if (withdrawInr > walletInr) { setInputError(`Insufficient wallet balance (≈ ₹${walletInr.toFixed(0)})`); return; }
       setCredits((prev) => parseFloat(Math.max(0, prev - grnNeeded).toFixed(4)));
       setConfirmation({ type: "withdraw", inr: withdrawInr.toFixed(2), grn: grnNeeded, net: withdrawNet });
+      // Log withdrawal to history
+      addActivity({
+        id: Date.now() + Math.random(),
+        name: `Withdrew ₹${withdrawInr.toFixed(2)} to bank`,
+        status: "approved",
+        date: todayStr(),
+        icon: "🏦",
+        credits: -grnNeeded,
+        blockHash: randHash(),
+        gasUsed: `${(Math.random() * 0.004 + 0.001).toFixed(4)} MATIC`,
+        ipfs: randIpfs(),
+        type: "withdraw",
+        inr: withdrawNet,
+      });
       setAmount("");
     }
   };
@@ -1048,59 +1048,114 @@ function MarketPage({ user, credits, setCredits, showToast, marketPrice }) {
 }
 
 // ─── History ──────────────────────────────────────────────────────────────────
-function HistoryPage({ showToast }) {
+function HistoryPage({ showToast, activityLog }) {
   const [expanded, setExpanded] = useState(null);
+  const [filter, setFilter]     = useState("all"); // all | mint | sell | withdraw
+
+  const filtered = filter === "all"
+    ? activityLog
+    : activityLog.filter((a) => a.type === filter);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-black">Audit Trail</h2>
-        <p className="text-sm mt-1" style={{ color:"rgba(226,232,240,0.4)" }}>Full blockchain-verified activity history</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black">Audit Trail</h2>
+          <p className="text-sm mt-1" style={{ color:"rgba(226,232,240,0.4)" }}>Full blockchain-verified activity history</p>
+        </div>
+        {/* Filter pills */}
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { v:"all",      label:"All" },
+            { v:"mint",     label:"📷 Mints" },
+            { v:"sell",     label:"💱 Sells" },
+            { v:"withdraw", label:"🏦 Withdrawals" },
+          ].map(({ v, label }) => (
+            <button key={v} onClick={() => setFilter(v)}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={filter === v
+                ? { background:"rgba(0,242,255,0.12)", border:"1px solid rgba(0,242,255,0.35)", color:"#00f2ff" }
+                : { background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", color:"rgba(226,232,240,0.4)" }}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-3">
-        {MOCK_ACTIVITY.map((item) => (
-          <div key={item.id} className="rounded-2xl overflow-hidden transition-all"
-            style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
-            <button className="w-full flex items-center gap-4 p-4 text-left"
-              onClick={() => setExpanded(expanded===item.id ? null : item.id)}>
-              <span className="text-xl shrink-0">{item.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">{item.name}</p>
-                <p className="text-xs font-mono-code mt-0.5" style={{ color:"rgba(226,232,240,0.3)" }}>{item.date}</p>
-              </div>
-              {item.credits > 0 && (
-                <span className="text-xs font-bold font-mono-code" style={{ color:"#00f2ff" }}>+{item.credits} GRN</span>
-              )}
-              <Badge status={item.status} />
-              <span className="text-xs" style={{ color:"rgba(226,232,240,0.3)" }}>{expanded===item.id?"▲":"▼"}</span>
-            </button>
+      {filtered.length === 0 && (
+        <div className="text-center py-16" style={{ color:"rgba(226,232,240,0.25)" }}>
+          <p className="text-4xl mb-3">📋</p>
+          <p className="text-sm">No entries yet for this filter</p>
+        </div>
+      )}
 
-            {expanded === item.id && (
-              <div className="px-4 pb-4 border-t pt-4 space-y-3" style={{ borderColor:"rgba(255,255,255,0.06)" }}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono-code text-xs">
-                  {[
-                    { label:"Block Hash",  val:item.blockHash },
-                    { label:"Gas Used",    val:item.gasUsed   },
-                    { label:"IPFS Hash",   val:item.ipfs      },
-                  ].map((r) => (
-                    <div key={r.label} className="rounded-xl p-3" style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)" }}>
-                      <p className="text-xs mb-1 tracking-widest uppercase" style={{ color:"rgba(226,232,240,0.3)", fontSize:"9px" }}>{r.label}</p>
-                      <p className="break-all" style={{ color:"rgba(0,242,255,0.8)" }}>{r.val}</p>
-                    </div>
-                  ))}
+      <div className="space-y-3">
+        {filtered.map((item) => {
+          const isSell     = item.type === "sell";
+          const isWithdraw = item.type === "withdraw";
+          const isTrade    = isSell || isWithdraw;
+          const creditLabel = isSell     ? `−${Math.abs(item.credits)} GRN`
+                            : isWithdraw ? `−${Math.abs(item.credits).toFixed ? Math.abs(item.credits).toFixed(2) : Math.abs(item.credits)} GRN`
+                            : item.credits > 0 ? `+${item.credits} GRN` : null;
+          const creditColor = isTrade ? "#f87171" : "#00f2ff";
+
+          return (
+            <div key={item.id} className="rounded-2xl overflow-hidden transition-all"
+              style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
+              <button className="w-full flex items-center gap-4 p-4 text-left"
+                onClick={() => setExpanded(expanded === item.id ? null : item.id)}>
+                <span className="text-xl shrink-0">{item.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{item.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <p className="text-xs font-mono-code" style={{ color:"rgba(226,232,240,0.3)" }}>{item.date}</p>
+                    {item.inr && (
+                      <p className="text-xs font-mono-code" style={{ color:"rgba(57,217,138,0.7)" }}>₹{item.inr} net</p>
+                    )}
+                  </div>
                 </div>
-                {item.status === "approved" && (
-                  <button onClick={() => showToast("📄 Certificate downloaded!")}
-                    className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all hover:-translate-y-0.5"
-                    style={{ background:"rgba(57,217,138,0.1)", border:"1px solid rgba(57,217,138,0.3)", color:"#39d98a" }}>
-                    ⬇ Download Certificate (PDF + QR)
-                  </button>
+                {creditLabel && (
+                  <span className="text-xs font-bold font-mono-code shrink-0" style={{ color: creditColor }}>{creditLabel}</span>
                 )}
-              </div>
-            )}
-          </div>
-        ))}
+                <Badge status={item.status} />
+                <span className="text-xs shrink-0" style={{ color:"rgba(226,232,240,0.3)" }}>{expanded === item.id ? "▲" : "▼"}</span>
+              </button>
+
+              {expanded === item.id && (
+                <div className="px-4 pb-4 border-t pt-4 space-y-3" style={{ borderColor:"rgba(255,255,255,0.06)" }}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono-code text-xs">
+                    {[
+                      { label:"Block Hash", val: item.blockHash },
+                      { label:"Gas Used",   val: item.gasUsed   },
+                      { label:"IPFS Hash",  val: item.ipfs      },
+                    ].map((r) => (
+                      <div key={r.label} className="rounded-xl p-3" style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)" }}>
+                        <p className="text-xs mb-1 tracking-widest uppercase" style={{ color:"rgba(226,232,240,0.3)", fontSize:"9px" }}>{r.label}</p>
+                        <p className="break-all" style={{ color:"rgba(0,242,255,0.8)" }}>{r.val}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {item.status === "approved" && !isTrade && (
+                    <button onClick={() => showToast("📄 Certificate downloaded!")}
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all hover:-translate-y-0.5"
+                      style={{ background:"rgba(57,217,138,0.1)", border:"1px solid rgba(57,217,138,0.3)", color:"#39d98a" }}>
+                      ⬇ Download Certificate (PDF + QR)
+                    </button>
+                  )}
+                  {isTrade && (
+                    <div className="rounded-xl px-4 py-3 flex items-center gap-2"
+                      style={{ background:"rgba(57,217,138,0.06)", border:"1px solid rgba(57,217,138,0.2)" }}>
+                      <span>🏦</span>
+                      <p className="text-xs font-mono-code" style={{ color:"rgba(57,217,138,0.8)" }}>
+                        ₹{item.inr} deposited to linked bank account
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1282,12 +1337,31 @@ const NAV_ITEMS = [
   { id:"gallery",    icon:"🖼️", label:"Gallery"      },
 ];
 
+// ─── Helpers for activity log entries ────────────────────────────────────────
+function randHash() {
+  return "0x" + Array.from({ length: 10 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+}
+function randIpfs() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789";
+  return "Qm" + Array.from({ length: 20 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+function todayStr() {
+  return new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export default function AdminDashboard({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState("");
-  const [credits, setCredits] = useState(user?.credits ?? 68);
+  const [credits, setCredits] = useState(user?.credits ?? 0);
   const fileInputRef = useRef(null);
+
+  // ── Activity log — starts empty, populated by real user actions ──
+  const [activityLog, setActivityLog] = useState([]);
+
+  const addActivity = useCallback((entry) => {
+    setActivityLog((prev) => [entry, ...prev]);
+  }, []);
 
   const walletId = user?.walletId ?? null;
   const copyWalletId = useCallback(() => {
@@ -1301,10 +1375,51 @@ export default function AdminDashboard({ user, onLogout }) {
     setTimeout(() => setToast(""), 4000);
   };
 
+  // ── Shared mint logic ──────────────────────────────────────────────────────
+  const [mintStep, setMintStep] = useState(0);
+  const [lastMinted, setLastMinted] = useState(0);
+
+  const mintAndAward = useCallback((files) => {
+    if (!files || files.length === 0) return;
+    const fileCount = files.length;
+    const earned = Array.from({ length: fileCount }, () => Math.floor(Math.random() * 6) + 3)
+      .reduce((a, b) => a + b, 0);
+    uploadFiles(files);
+    setMintStep(1);
+    setTimeout(() => setMintStep(2), 2000);
+    setTimeout(() => {
+      setMintStep(3);
+      setLastMinted(earned);
+      setCredits((prev) => prev + earned);
+      // Add one history entry per uploaded file
+      Array.from(files).forEach((file) => {
+        const name = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+        const perFile = Math.floor(earned / fileCount);
+        const isVideo = file.type.startsWith("video/");
+        addActivity({
+          id: Date.now() + Math.random(),
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          fileName: file.name,           // raw filename — used to match media cards
+          fileType: isVideo ? "video" : "image",
+          status: "approved",
+          date: todayStr(),
+          icon: isVideo ? "🎬" : "📷",
+          credits: perFile,
+          blockHash: randHash(),
+          gasUsed: `${(Math.random() * 0.004 + 0.001).toFixed(4)} MATIC`,
+          ipfs: randIpfs(),
+          type: "mint",
+        });
+      });
+      showToast(`🎉 +${earned} GRN minted to your wallet!`);
+    }, 4500);
+    setTimeout(() => { setMintStep(0); setLastMinted(0); }, 8000);
+  }, [uploadFiles, addActivity]); // eslint-disable-line
+
   const initials = (name) => (name || "?").slice(0, 2).toUpperCase();
   const shortWallet = walletId ? walletId.slice(0, 8) + "..." + walletId.slice(-4) : "—";
 
-  const pageProps = { user, credits, setCredits, walletId, copyWalletId, showToast, mediaFiles, uploading, uploadFiles, deleteMedia, stats, fileInputRef, marketPrice, navigateTo: setPage };
+  const pageProps = { user, credits, setCredits, walletId, copyWalletId, showToast, mediaFiles, uploading, uploadFiles, deleteMedia, stats, fileInputRef, marketPrice, navigateTo: setPage, mintAndAward, mintStep, lastMinted, activityLog, addActivity };
 
   return (
     <div className="flex min-h-screen" style={{ background:"#070b12" }}>
@@ -1420,7 +1535,7 @@ export default function AdminDashboard({ user, onLogout }) {
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple hidden
-        onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }} />
+        onChange={(e) => { mintAndAward(e.target.files); e.target.value = ""; }} />
     </div>
   );
 }
