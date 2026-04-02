@@ -226,18 +226,6 @@ npm run dev
 | Farmer access | Large farms only | Any smartphone |
 
 
----
-
-## 👥 Team — Old Monkz
-
-| Member | Role | Responsibility |
-|--------|------|---------------|
-| **Shrestha** | Blockchain Lead | Solidity contract, Hardhat, deployment, web3 integration |
-| **Yatish** | Backend Lead | FastAPI, AI/ML pipeline, OCR, carbon calculator |
-| **Bhanu** | Frontend Lead | React, Tailwind, MetaMask connect, dashboard UI |
-
----
-
 
 
 ---
