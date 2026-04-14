@@ -230,4 +230,3 @@ npm run dev
 
 ---
 
-<p align="center">Made with 🌿 by Team Old Monkz · BGSCET · 2026</p>
