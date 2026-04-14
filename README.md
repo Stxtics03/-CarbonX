@@ -13,7 +13,7 @@
 
 All scale types of farmers in India practice sustainable agriculture every day — reduced tilling, crop rotation, organic methods — but they earn nothing from it. Carbon markets exist to reward exactly this behavior, but traditional MRV (Measurement, Reporting, and Verification) systems are:
 
-- **Too expensive** — verification costs $50–$200 per farmer
+- **Too expensive** — verification costs 3000-5000 per farmer
 - **Too slow** — credits take months to arrive
 - **Too manual** — designed for large industrial farms, not smallholders
 - **Untrustworthy** — no audit trail, data can be falsified
