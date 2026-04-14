@@ -219,7 +219,7 @@ npm run dev
 
 | Metric | Traditional MRV | CarbonX |
 |--------|----------------|---------|
-| Verification cost | $50–$200 per farmer | < $5 per farmer |
+| Verification cost | 3000-5000 Rs per farmer | < 500 Rs per farmer |
 | Credit delivery time | 3–6 months | Minutes |
 | Fraud prevention | Manual checks | AI + blockchain |
 | Audit trail | Paper records | Immutable on-chain |
